@@ -20,8 +20,8 @@ import * as utils from 'minimalistic-crypto-utils';
 
 type Point = elliptic.curve.base.BasePoint;
 
-const EC = new elliptic.ec('p256');
-const suite = [0x01];
+const EC = new elliptic.ec('secp256k1');
+const suite = [0xfe];
 
 function string_to_point(s: number[]): Point | 'INVALID' {
   try {
@@ -49,7 +49,6 @@ function hash_to_curve(public_key: Point, alpha: number[]) {
       .update(public_key.encode('array', true))
       .update(alpha)
       .update([ctr])
-      .update([0x00])
       .digest();
     hash = arbitrary_string_to_point(hash_string); // cofactor = 1, skip multiply
     ctr += 1;
@@ -62,31 +61,47 @@ function hash_to_curve(public_key: Point, alpha: number[]) {
 
 function nonce_generation(secret_key: BN, h_string: number[]) {
   const h1 = sha256.array(h_string);
-  let K = new Array(32)
-    .fill(0)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  let V = new Array(32)
-    .fill(1)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+
+  let K = new Array(32).fill(0)
+  let V = new Array(32).fill(1)
+
   K = sha256.hmac
+    // @ts-ignore
     .create(K)
     .update(V)
     .update([0x00])
     .update(secret_key.toArray())
     .update(h1)
-    .hex();
-  V = sha256.hmac.create(K).update(V).hex();
+    .digest();
+
+  V = sha256.hmac
+    // @ts-ignore
+    .create(K)
+    .update(new Uint8Array(32).fill(1))
+    .digest();
+
+
   K = sha256.hmac
+    // @ts-ignore
     .create(K)
     .update(V)
     .update([0x01])
     .update(secret_key.toArray())
     .update(h1)
-    .hex();
-  V = sha256.hmac.create(K).update(V).hex();
-  V = sha256.hmac.create(K).update(V).hex(); // qLen = hLen = 32, skip loop
+    .digest();
+
+  V = sha256.hmac
+    // @ts-ignore
+    .create(K)
+    .update(V)
+    .digest();
+
+  V = sha256.hmac
+    // @ts-ignore
+    .create(K)
+    .update(V)
+    .digest(); // qLen = hLen = 32, skip loop
+
   return new BN(V, 'hex');
 }
 
@@ -95,7 +110,6 @@ function hash_points(...points: Point[]) {
   for (const point of points) {
     str.push(...point.encode('array', true));
   }
-  str.push(0);
 
   const c_string = sha256.digest(str);
   const truncated_c_string = c_string.slice(0, 16);
@@ -149,8 +163,7 @@ function _proof_to_hash(pi: number[]): number[] {
     .create()
     .update(suite)
     .update([0x03])
-    .update(Gamma.encode('array', false))
-    .update([0x00])
+    .update(Gamma.encode('array', true))
     .digest();
 
   return beta;
