@@ -1,18 +1,3 @@
-/*
-https://tools.ietf.org/pdf/draft-irtf-cfrg-vrf-08.pdf
-ECVRF-P256-SHA256-TAI
-n=16
-qLen=32
-cofactor=1
-ptLen=33
-
-B = EC.g
-q = EC.n
-point_to_string = Point.encode('array', true)
-string_to_int = new BN(str)
-int_to_string = n.toArray('be', len)
-*/
-
 import BN from 'bn.js';
 import { sha256 } from 'js-sha256';
 import * as elliptic from 'elliptic';
@@ -23,7 +8,7 @@ type Point = elliptic.curve.base.BasePoint;
 const EC = new elliptic.ec('secp256k1');
 const suite = [0xfe];
 
-function string_to_point(s: number[]): Point | 'INVALID' {
+function stringToPoint(s: number[]): Point | 'INVALID' {
   try {
     return EC.curve.decodePoint(s);
   } catch {
@@ -31,14 +16,14 @@ function string_to_point(s: number[]): Point | 'INVALID' {
   }
 }
 
-function arbitrary_string_to_point(s: number[]): Point | 'INVALID' {
+function arbitraryStringToPoint(s: number[]): Point | 'INVALID' {
   if (s.length !== 32) {
     throw new Error('s should be 32 byte');
   }
-  return string_to_point([2, ...s]);
+  return stringToPoint([2, ...s]);
 }
 
-function hash_to_curve(public_key: Point, alpha: number[]) {
+function hashToCurve(publicKey: Point, alpha: number[]) {
   let hash: Point | 'INVALID' = 'INVALID';
   let ctr = 0;
   while ((hash == 'INVALID' || hash.isInfinity()) && ctr < 256) {
@@ -46,31 +31,31 @@ function hash_to_curve(public_key: Point, alpha: number[]) {
       .create()
       .update(suite)
       .update([0x01])
-      .update(public_key.encode('array', true))
+      .update(publicKey.encode('array', true))
       .update(alpha)
       .update([ctr])
       .digest();
-    hash = arbitrary_string_to_point(hash_string); // cofactor = 1, skip multiply
+    hash = arbitraryStringToPoint(hash_string); // cofactor = 1, skip multiply
     ctr += 1;
   }
   if (hash == 'INVALID') {
-    throw new Error('hash_to_curve failed');
+    throw new Error('hashToCurve failed');
   }
   return hash;
 }
 
-function nonce_generation(secret_key: BN, h_string: number[]) {
+export function nonceGeneration(secretKey: BN, h_string: number[]) {
   const h1 = sha256.array(h_string);
 
-  let K = new Array(32).fill(0)
-  let V = new Array(32).fill(1)
+  let K = new Array(32).fill(0);
+  let V = new Array(32).fill(1);
 
   K = sha256.hmac
     // @ts-ignore
     .create(K)
     .update(V)
     .update([0x00])
-    .update(secret_key.toArray())
+    .update(secretKey.toArray())
     .update(h1)
     .digest();
 
@@ -80,13 +65,12 @@ function nonce_generation(secret_key: BN, h_string: number[]) {
     .update(new Uint8Array(32).fill(1))
     .digest();
 
-
   K = sha256.hmac
     // @ts-ignore
     .create(K)
     .update(V)
     .update([0x01])
-    .update(secret_key.toArray())
+    .update(secretKey.toArray())
     .update(h1)
     .digest();
 
@@ -105,7 +89,7 @@ function nonce_generation(secret_key: BN, h_string: number[]) {
   return new BN(V, 'hex');
 }
 
-function hash_points(...points: Point[]) {
+function hashPoints(...points: Point[]) {
   const str = [...suite, 0x02];
   for (const point of points) {
     str.push(...point.encode('array', true));
@@ -118,11 +102,11 @@ function hash_points(...points: Point[]) {
   return c;
 }
 
-function decode_proof(pi: number[]) {
+function decodeProof(pi: number[]) {
   const gamma_string = pi.slice(0, 33);
   const c_string = pi.slice(33, 33 + 16);
   const s_string = pi.slice(33 + 16, 33 + 16 + 32);
-  const Gamma = string_to_point(gamma_string);
+  const Gamma = stringToPoint(gamma_string);
   if (Gamma == 'INVALID') {
     return 'INVALID';
   }
@@ -137,14 +121,14 @@ function decode_proof(pi: number[]) {
   };
 }
 
-function _prove(secret_key: BN, alpha: number[]): number[] {
-  const public_key = EC.keyFromPrivate(secret_key.toArray()).getPublic();
-  const H = hash_to_curve(public_key, alpha);
+function _prove(secretKey: BN, alpha: number[]): number[] {
+  const publicKey = EC.keyFromPrivate(secretKey.toArray()).getPublic();
+  const H = hashToCurve(publicKey, alpha);
   const h_string = H.encode('array', true);
-  const Gamma = H.mul(secret_key);
-  const k = nonce_generation(secret_key, h_string);
-  const c = hash_points(H, Gamma, EC.g.mul(k), H.mul(k));
-  const s = k.add(c.mul(secret_key)).umod(EC.n);
+  const Gamma = H.mul(secretKey);
+  const k = nonceGeneration(secretKey, h_string);
+  const c = hashPoints(H, Gamma, EC.g.mul(k), H.mul(k));
+  const s = k.add(c.mul(secretKey)).umod(EC.n);
   const pi = [
     ...Gamma.encode('array', true),
     ...c.toArray('be', 16),
@@ -153,8 +137,8 @@ function _prove(secret_key: BN, alpha: number[]): number[] {
   return pi;
 }
 
-function _proof_to_hash(pi: number[]): number[] {
-  const D = decode_proof(pi);
+function _proofToHash(pi: number[]): number[] {
+  const D = decodeProof(pi);
   if (D == 'INVALID') {
     throw new Error('Invalid proof');
   }
@@ -169,60 +153,125 @@ function _proof_to_hash(pi: number[]): number[] {
   return beta;
 }
 
-function _verify(public_key: Point, pi: number[], alpha: number[]) {
-  const D = decode_proof(pi);
+function _verify(publicKey: Point, pi: number[], alpha: number[]) {
+  const D = decodeProof(pi);
   if (D == 'INVALID') {
     throw new Error('Invalid proof');
   }
   const { Gamma, c, s } = D;
-  const H = hash_to_curve(public_key, alpha);
-  const U = EC.g.mul(s).add(public_key.mul(c).neg());
+  const H = hashToCurve(publicKey, alpha);
+  const U = EC.g.mul(s).add(publicKey.mul(c).neg());
   const V = H.mul(s).add(Gamma.mul(c).neg());
-  const c2 = hash_points(H, Gamma, U, V);
+  const c2 = hashPoints(H, Gamma, U, V);
   if (!c.eq(c2)) {
     throw new Error('Invalid proof');
   }
-  return _proof_to_hash(pi);
+  return _proofToHash(pi);
 }
 
-function _validate_key(public_key_string: number[]) {
-  const public_key = string_to_point(public_key_string);
-  if (public_key == 'INVALID' || public_key.isInfinity()) {
+function _validateKey(publicKey_string: number[]) {
+  const publicKey = stringToPoint(publicKey_string);
+  if (publicKey == 'INVALID' || publicKey.isInfinity()) {
     throw new Error('Invalid public key');
   }
-  return public_key;
+  return publicKey;
 }
 
 export function keygen() {
   const keypair = EC.genKeyPair();
-  const secret_key = keypair.getPrivate('hex');
-  const public_key = keypair.getPublic('hex');
+  const secretKey = keypair.getPrivate('hex');
+  const publicKey = keypair.getPublic('hex');
   return {
-    secret_key,
-    public_key,
+    secretKey,
+    publicKey,
   };
 }
 
-export function prove(secret_key: string, alpha: string): string {
-  const pi = _prove(new BN(secret_key, 'hex'), utils.toArray(alpha, 'hex'));
+/**
+  * Generates proof from a secret key and message
+  * @param secretKey the secret key to use to generate the proof
+  * @param alpha the message to use to generate the proof
+  * @returns the proof as an hex string
+  * @example
+  * ```js
+  * const { prove, proofToHash, verify } = require('@roamin/ecvrf');
+  * const elliptic = require('elliptic');
+  *
+  * const EC = new elliptic.ec('secp256k1');
+  *
+  * const SECRET = EC.keyPair({ priv: 'c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721', privEnc: 'hex' });
+  *
+  * const msg = Buffer.from('sample').toString('hex');
+  *
+  * // VRF proof and hash output
+  * const proof = prove(SECRET.getPrivate(), msg);
+  * ```
+  */
+export function prove(secretKey: string, alpha: string): string {
+  const pi = _prove(new BN(secretKey, 'hex'), utils.toArray(alpha, 'hex'));
   return utils.toHex(pi);
 }
 
-export function proof_to_hash(pi: string): string {
-  const beta = _proof_to_hash(utils.toArray(pi, 'hex'));
+/**
+  * Generates the hash of a proof
+  * @param pi the proof to hash
+  * @returns the hash proof as an hex string
+  * @example
+  * ```js
+  * const { prove, proofToHash, verify } = require('@roamin/ecvrf');
+  * const elliptic = require('elliptic');
+  *
+  * const EC = new elliptic.ec('secp256k1');
+  *
+  * const SECRET = EC.keyPair({ priv: 'c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721', privEnc: 'hex' });
+  *
+  * const msg = Buffer.from('sample').toString('hex');
+  *
+  * // VRF proof and hash output
+  * const proof = prove(SECRET.getPrivate(), msg);
+  * const hash = proofToHash(proof);
+  * ```
+  */
+export function proofToHash(pi: string): string {
+  const beta = _proofToHash(utils.toArray(pi, 'hex'));
   return utils.toHex(beta);
 }
 
-export function verify(public_key: string, pi: string, alpha: string): string {
+/**
+  * Verifies the provided VRF proof and computes the VRF hash output
+  * @param publicKey the public key to use to verify the proof
+  * @param pi the proof to verify
+  * @param alpha the message to verify
+  * @returns the hash proof as an hex string
+  * @example
+  * ```js
+  * const { prove, proofToHash, verify } = require('@roamin/ecvrf');
+  * const elliptic = require('elliptic');
+  *
+  * const EC = new elliptic.ec('secp256k1');
+  *
+  * const SECRET = EC.keyPair({ priv: 'c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721', privEnc: 'hex' });
+  *
+  * const msg = Buffer.from('sample').toString('hex');
+  *
+  * // VRF proof and hash output
+  * const proof = prove(SECRET.getPrivate(), msg);
+  * const hash = proofToHash(proof);
+  * 
+  * // VRF proof verification (returns VRF hash output)
+  * const beta = verify(SECRET.getPublic('hex'), proof, msg);
+  * ```
+  */
+export function verify(publicKey: string, pi: string, alpha: string): string {
   const beta = _verify(
-    EC.curve.decodePoint(public_key, 'hex'),
+    EC.curve.decodePoint(publicKey, 'hex'),
     utils.toArray(pi, 'hex'),
     utils.toArray(alpha, 'hex')
   );
   return utils.toHex(beta);
 }
 
-export function validate_key(public_key: string) {
-  _validate_key(utils.toArray(public_key, 'hex'));
+export function validateKey(publicKey: string) {
+  _validateKey(utils.toArray(publicKey, 'hex'));
   return;
 }

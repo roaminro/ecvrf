@@ -1,17 +1,15 @@
 {
-  "name": "ecvrf",
-  "version": "0.0.3",
+  "name": "@roamin/ecvrf",
+  "version": "0.1.0",
   "description": "Elliptic Curve VRF",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist && tsc",
-    "test": "ts-node src/test.ts",
-    "prepare": "npm run build",
-    "version": "git add -A",
-    "postversion": "git push && git push --tags"
+    "build": "yarn lint && rimraf dist && tsc",
+    "lint": "eslint --max-warnings 0 --ext ts \"src/**/*.ts\"",
+    "test": "yarn jest",
+    "prepublishOnly": "yarn lint && yarn test && yarn build"
   },
-  "author": "icepeng",
   "license": "MIT",
   "dependencies": {
     "bn.js": "^5.2.1",
@@ -22,7 +20,17 @@
   "devDependencies": {
     "@types/bn.js": "^5.1.1",
     "@types/elliptic": "^6.4.14",
+    "@types/jest": "^29.0.3",
+    "@typescript-eslint/eslint-plugin": "^5.38.0",
+    "@typescript-eslint/parser": "^5.38.0",
+    "eslint": "^8.23.1",
+    "jest": "^29.0.3",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^29.0.1",
     "ts-node": "^10.9.1",
     "typescript": "^4.8.3"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }
