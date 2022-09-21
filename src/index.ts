@@ -8,7 +8,7 @@ type Point = elliptic.curve.base.BasePoint;
 const EC = new elliptic.ec('secp256k1');
 const suite = [0xfe];
 
-function stringToPoint(s: number[]): Point | 'INVALID' {
+function stringToPoint(s: Uint8Array): Point | 'INVALID' {
   try {
     return EC.curve.decodePoint(s);
   } catch {
@@ -16,14 +16,14 @@ function stringToPoint(s: number[]): Point | 'INVALID' {
   }
 }
 
-function arbitraryStringToPoint(s: number[]): Point | 'INVALID' {
+function arbitraryStringToPoint(s: Uint8Array): Point | 'INVALID' {
   if (s.length !== 32) {
     throw new Error('s should be 32 byte');
   }
-  return stringToPoint([2, ...s]);
+  return stringToPoint(new Uint8Array([2, ...s]));
 }
 
-function hashToCurve(publicKey: Point, alpha: number[]) {
+function hashToCurve(publicKey: Point, alpha: Uint8Array) {
   let hash: Point | 'INVALID' = 'INVALID';
   let ctr = 0;
   while ((hash == 'INVALID' || hash.isInfinity()) && ctr < 256) {
@@ -35,6 +35,7 @@ function hashToCurve(publicKey: Point, alpha: number[]) {
       .update(alpha)
       .update([ctr])
       .digest();
+    // @ts-ignore hash_string is a number[]
     hash = arbitraryStringToPoint(hash_string); // cofactor = 1, skip multiply
     ctr += 1;
   }
@@ -44,7 +45,7 @@ function hashToCurve(publicKey: Point, alpha: number[]) {
   return hash;
 }
 
-export function nonceGeneration(secretKey: BN, h_string: number[]) {
+export function nonceGeneration(secretKey: BN, h_string: Uint8Array) {
   const h1 = sha256.array(h_string);
 
   let K = new Array(32).fill(0);
@@ -102,7 +103,7 @@ function hashPoints(...points: Point[]) {
   return c;
 }
 
-function decodeProof(pi: number[]) {
+function decodeProof(pi: Uint8Array) {
   const gamma_string = pi.slice(0, 33);
   const c_string = pi.slice(33, 33 + 16);
   const s_string = pi.slice(33 + 16, 33 + 16 + 32);
@@ -121,11 +122,12 @@ function decodeProof(pi: number[]) {
   };
 }
 
-function _prove(secretKey: BN, alpha: number[]): number[] {
+function _prove(secretKey: BN, alpha: Uint8Array): number[] {
   const publicKey = EC.keyFromPrivate(secretKey.toArray()).getPublic();
   const H = hashToCurve(publicKey, alpha);
   const h_string = H.encode('array', true);
   const Gamma = H.mul(secretKey);
+  // @ts-ignore h_string is a number[]
   const k = nonceGeneration(secretKey, h_string);
   const c = hashPoints(H, Gamma, EC.g.mul(k), H.mul(k));
   const s = k.add(c.mul(secretKey)).umod(EC.n);
@@ -137,7 +139,7 @@ function _prove(secretKey: BN, alpha: number[]): number[] {
   return pi;
 }
 
-function _proofToHash(pi: number[]): number[] {
+function _proofToHash(pi: Uint8Array): number[] {
   const D = decodeProof(pi);
   if (D == 'INVALID') {
     throw new Error('Invalid proof');
@@ -153,7 +155,7 @@ function _proofToHash(pi: number[]): number[] {
   return beta;
 }
 
-function _verify(publicKey: Point, pi: number[], alpha: number[]) {
+function _verify(publicKey: Point, pi: Uint8Array, alpha: Uint8Array) {
   const D = decodeProof(pi);
   if (D == 'INVALID') {
     throw new Error('Invalid proof');
@@ -169,7 +171,7 @@ function _verify(publicKey: Point, pi: number[], alpha: number[]) {
   return _proofToHash(pi);
 }
 
-function _validateKey(publicKey_string: number[]) {
+function _validateKey(publicKey_string: Uint8Array) {
   const publicKey = stringToPoint(publicKey_string);
   if (publicKey == 'INVALID' || publicKey.isInfinity()) {
     throw new Error('Invalid public key');
@@ -189,8 +191,8 @@ export function keygen() {
 
 /**
   * Generates proof from a secret key and message
-  * @param secretKey the secret key to use to generate the proof
-  * @param alpha the message to use to generate the proof
+  * @param secretKey the secret key to use to generate the proof (hex string)
+  * @param alpha the message to use to generate the proof (hex string)
   * @returns the proof as an hex string
   * @example
   * ```js
@@ -214,7 +216,7 @@ export function prove(secretKey: string, alpha: string): string {
 
 /**
   * Generates the hash of a proof
-  * @param pi the proof to hash
+  * @param pi the proof to hash (hex string)
   * @returns the hash proof as an hex string
   * @example
   * ```js
@@ -239,9 +241,9 @@ export function proofToHash(pi: string): string {
 
 /**
   * Verifies the provided VRF proof and computes the VRF hash output
-  * @param publicKey the public key to use to verify the proof
-  * @param pi the proof to verify
-  * @param alpha the message to verify
+  * @param publicKey the public key to use to verify the proof (hex string)
+  * @param pi the proof to verify (hex string)
+  * @param alpha the message to verify (hex string)
   * @returns the hash proof as an hex string
   * @example
   * ```js

@@ -1,6 +1,6 @@
 {
   "name": "@roamin/ecvrf",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Elliptic Curve VRF",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
