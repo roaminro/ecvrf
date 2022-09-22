@@ -25,7 +25,7 @@ const SECRET = EC.keyPair({ priv: 'c9afa9d845ba75166b5c215767b1d6934e50c3db36e89
 const msg = Buffer.from('sample').toString('hex');
 
 // VRF proof and hash output
-const proof = prove(SECRET.getPrivate(), msg);
+const proof = prove(SECRET.getPrivate('hex'), msg);
 const hash = proofToHash(proof);
 
 // VRF proof verification (returns VRF hash output)
