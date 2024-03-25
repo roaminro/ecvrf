@@ -1,0 +1,14 @@
+This work uses the following dependencies that are available 
+under the MIT license (https://opensource.org/licenses/MIT): 
+
+* bn.js   
+   Copyright (c) 2015 Fedor Indutny
+
+* elliptic  
+   Copyright (c) 2014 Fedor Indutny
+
+* Minimalistic-crypto-utils
+   Copyright (c) 2017 Fedor Indutny
+
+* Js-sha256
+   Copyright (c) 2014-2024 Chen, Yi-Cyuan
